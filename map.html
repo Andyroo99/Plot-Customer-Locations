@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Map Example</title>
+  <style>
+  html, body, #map {
+    height: 100%;
+    margin: 1;
+    padding: 0;
+  }
+  </style>
+  <script src="https://maps.googleapis.com/maps/api/js?key=EXAMPLEKEYHERE&libraries=places"></script>
+  <script>
+    let map;
+    let markers = [];
+    let chicagoCircle;
+    let searchMarker;
+
+    function initMap() {
+      const mapOptions = {
+        center: { lat: 37.0902, lng: -95.7129 }, // Chicago coordinates
+        zoom: 5 // Adjust the zoom level as desired
+      };
+
+      map = new google.maps.Map(document.getElementById('map'), mapOptions);
+    }
+
+    function updateRadiusLabel() {
+      const radiusLabel = document.getElementById('radius-label');
+      const radiusValue = document.getElementById('radius').value;
+      radiusLabel.textContent = radiusValue + ' miles';
+    }
+
+    function searchDistributors() {
+      // Get user input
+      const address = document.getElementById('address').value;
+      const circleRadius = document.getElementById('radius').value;
+
+      // Geocode user-entered address to obtain latitude and longitude
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ address: address }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          const location = results[0].geometry.location;
+          const lat = location.lat();
+          const lng = location.lng();
+
+          // Remove existing search marker if present
+          if (searchMarker) {
+            searchMarker.setMap(null);
+          }
+
+          // Center the map on the searched address
+          map.setCenter({ lat: lat, lng: lng });
+          map.setZoom(8);
+
+          // Show all markers
+          markers.forEach(marker => {
+            marker.setMap(map);
+          });
+
+          // Remove existing circle if present
+          if (chicagoCircle) {
+            chicagoCircle.setMap(null);
+          }
+
+          // Create a new circle for the searched location and radius
+          chicagoCircle = new google.maps.Circle({
+            strokeColor: '#FF0000',
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: '#FF0000',
+            fillOpacity: 0.35,
+            map: map,
+            center: { lat: lat, lng: lng },
+            radius: circleRadius * 1609.34 // Convert miles to meters
+          });
+
+          // Position the search marker in the center of the circle
+          searchMarker.setPosition(chicagoCircle.getCenter());
+        } else {
+          alert('Geocode was not successful for the following reason: ' + status);
+        }
+      });
+    }
+
+    function handleFileUpload() {
+      const fileInput = document.getElementById('file-input');
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+
+      reader.onload = function(e) {
+        const contents = e.target.result;
+        const lines = contents.split('\n');
+        const distributorLocations = [];
+
+        lines.forEach(line => {
+          const values = line.split(',');
+          const company = values[0];
+          const address = values[1];
+          const lat = parseFloat(values[2]);
+          const lng = parseFloat(values[3]);
+          const phone = values[4];
+          const fax = values[5];
+          const contact = values[6];
+
+          if (!isNaN(lat) && !isNaN(lng)) {
+            distributorLocations.push({
+              lat: lat,
+              lng: lng,
+              company: company,
+              address: address,
+              contact: contact,
+              phone: phone,
+              fax: fax
+            });
+          }
+        });
+
+        plotDistributors(distributorLocations);
+      };
+
+      reader.readAsText(file);
+    }
+
+    function plotDistributors(distributorLocations) {
+      distributorLocations.forEach(location => {
+        const marker = new google.maps.Marker({
+          position: { lat: location.lat, lng: location.lng },
+          map: map,
+          icon: {
+            url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+          }
+        });
+
+        const infoWindow = new google.maps.InfoWindow({
+          content: `<h3>${location.company}</h3>
+                    <p>Address: ${location.address}</p>
+                    <p>Contact: ${location.contact}</p>
+                    <p>Phone: ${location.phone}</p>
+                    <p>Fax: ${location.fax}</p>`
+        });
+
+        marker.addListener('click', () => {
+          infoWindow.open(map, marker);
+        });
+
+        markers.push(marker);
+      });
+    }
+  </script>
+</head>
+<body onload="initMap()">
+  <div>
+    <label for="address">Address:</label>
+    <input type="text" id="address" placeholder="Enter address">
+
+    <label for="radius">Circle Radius:</label>
+    <input type="range" id="radius" min="0" max="500" step="25" value="100" onchange="updateRadiusLabel()">
+
+    <span id="radius-label">100 miles</span>
+
+    <button onclick="searchDistributors()">Search</button>
+  </div>
+
+  <div>
+    <input type="file" id="file-input" accept=".csv" onchange="handleFileUpload()">
+  </div>
+
+  <div id="map"></div>
+</body>
+</html>
